@@ -3,7 +3,7 @@ import unittest
 from io import BytesIO
 from unittest.mock import patch
 
-from src.researchforge.academic_search import (
+from src.researchforge.retrieval.academic_search import (
     search_arxiv,
     build_arxiv_query,
 )
