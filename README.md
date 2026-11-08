@@ -309,8 +309,6 @@ ResearchForge/
     └── run_research.py
 ```
 
-This represents the intended architecture. Files should be created incrementally when their corresponding functionality is implemented.
-
 ## 6.1 Directory Responsibilities
 
 ### `src/researchforge/agents/`
