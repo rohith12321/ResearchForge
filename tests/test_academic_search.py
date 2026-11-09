@@ -4,8 +4,14 @@ from io import BytesIO
 from unittest.mock import patch
 
 from src.researchforge.retrieval.academic_search import (
-    search_arxiv,
+    Paper,
+    SearchResult,
     build_arxiv_query,
+    search_arxiv,
+    search_semantic_scholar,
+    search_wikipedia,
+    search_all,
+    print_results
 )
 
 
