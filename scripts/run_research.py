@@ -34,17 +34,19 @@ _load_env_file(_project_root / ".env")
 
 
 
-def run_research():
-    research_question = input("\nEnter your research question: ").strip()
+
+def run_research(research_question=None, max_iterations=3):
+    """Execute ResearchForge and return the final research state."""
+
+    if research_question is None:
+        research_question = input("\nEnter your research question: ").strip()
 
     if not research_question:
         print("Research question cannot be empty.")
-        return
+        return None
 
-    # Build the LangGraph workflow
     research_graph = build_research_graph()
 
-    # Initialize the shared state
     initial_state = {
         "research_question": research_question,
         "subquestions": [],
@@ -53,13 +55,14 @@ def run_research():
         "fact_check_results": [],
         "critique": {},
         "iteration_count": 0,
-        "max_iterations": 3,
+        "max_iterations": max_iterations,
         "final_report": "",
+        "completion_status": "",
+        "processed_paper_ids": []
     }
 
     print("\nStarting ResearchForge...\n")
 
-    # Execute the complete workflow
     result = research_graph.invoke(initial_state)
 
     print("\n" + "=" * 60)
@@ -77,30 +80,29 @@ def run_research():
     print(f"Fact-check claims: {len(result['fact_check_results'])}")
     print(f"Completion status: {result['completion_status']}")
 
-    claims = result["fact_check_results"]
-
     verdict_counts = {
         "supported": 0,
         "partially_supported": 0,
         "unsupported": 0
     }
 
-    for claim in claims:
+    for claim in result["fact_check_results"]:
         verdict = claim.get("verdict")
 
         if verdict in verdict_counts:
             verdict_counts[verdict] += 1
 
-    print(f"Fact-check claims: {len(claims)}")
     print(f"Verdict distribution: {verdict_counts}")
 
-    for i, claim in enumerate(claims, 1):
+    for i, claim in enumerate(result["fact_check_results"], 1):
         print(f"\nClaim {i}: {claim['claim']}")
         print(f"Verdict: {claim['verdict']}")
         print(f"Explanation: {claim['explanation']}")
         print(f"Evidence: {claim['evidence']}")
 
-        print("\nResearchForge execution completed.")
+    print("\nResearchForge execution completed.")
+
+    return result
 
 
 if __name__ == "__main__":

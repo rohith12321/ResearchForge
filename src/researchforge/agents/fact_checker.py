@@ -35,19 +35,22 @@ class FactChecker:
 
         self.model = None
 
+
     def validate_claims(self, claims: list[dict], valid_sources: dict) -> list[dict]:
+        """Remove evidence that cannot be verified against retrieved chunks."""
+
         for claim in claims:
             valid_evidence = []
 
-            for evidence in claim["evidence"]:
+            for evidence in claim.get("evidence", []):
                 paper_id = evidence.get("paper_id")
                 quote = evidence.get("quote", "")
 
-                # Check whether the paper was actually retrieved
+                # Check whether the paper was actually retrieved.
                 if paper_id not in valid_sources:
                     continue
 
-                # Check whether the quotation exists in retrieved evidence
+                # Check whether the quotation exists in retrieved evidence.
                 source_texts = valid_sources[paper_id]["texts"]
 
                 if not quote.strip():
@@ -60,11 +63,12 @@ class FactChecker:
 
             claim["evidence"] = valid_evidence
 
-            # A claim cannot be supported without valid evidence
+            # A claim cannot be supported without valid evidence.
             if not valid_evidence:
                 claim["verdict"] = "unsupported"
-        claims = self.validate_claims(claims, valid_sources)
+
         return claims
+
 
     def check(self, synthesis: str, research_results: list[dict]) -> list[dict]:
 
@@ -187,7 +191,7 @@ If no evidence supports a claim, return an empty evidence list.
                 self.model = model
                 print(f"Successful model: {model}")
 
-                return claims
+                return self.validate_claims(claims, valid_sources)
 
             except Exception as error:
                 print(f"{model} failed: {error}")
