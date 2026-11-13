@@ -1,30 +1,61 @@
+
 import os
 import json
+import time
 
 from google import genai
 from google.genai import types
 
 
 class ResearchManager:
-    def __init__(self, model="gemini-3.5-flash-lite"):
+    MODELS = [
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+        "gemini-3.8-flash",
+        "gemma-4-26b-a4b-it",
+        "gemma-4-31b-it",
+        "gemini-4-hydrogen"
+    ]
+
+    def __init__(self, model=None):
         api_key = os.getenv("GEMINI_API_KEY")
 
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is not set.")
 
         self.client = genai.Client(api_key=api_key)
-        self.model = model
 
-    def generate(self, prompt: str) -> str:
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=prompt
+        # If a model is specified, try it first.
+        self.models = (
+            [model] + [m for m in self.MODELS if m != model]
+            if model else self.MODELS.copy()
         )
 
-        if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
+        self.model = None
 
-        return response.text
+    def generate(self, prompt: str) -> str:
+        for model in self.models:
+            try:
+                print(f"Trying model: {model}")
+
+                response = self.client.models.generate_content(
+                    model=model,
+                    contents=prompt
+                )
+
+                if response.text:
+                    self.model = model
+                    print(f"Successful model: {model}")
+                    return response.text
+
+            except Exception as error:
+                print(f"{model} failed: {error}")
+                time.sleep(1)
+
+        raise RuntimeError("All available Gemini models failed.")
 
     def decompose_query(self, research_question: str) -> list[str]:
         prompt = f"""
@@ -55,24 +86,37 @@ Return a JSON object with this structure:
 }}
 """
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json"
-            )
-        )
+        for model in self.models:
+            try:
+                print(f"Trying model: {model}")
 
-        if not response.text:
-            raise RuntimeError("Gemini returned an empty response.")
+                response = self.client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json"
+                    )
+                )
 
-        result = json.loads(response.text)
-        subquestions = result.get("subquestions")
+                if not response.text:
+                    raise ValueError("Empty response.")
 
-        if not isinstance(subquestions, list) or not 5 <= len(subquestions) <= 8:
-            raise ValueError("Gemini returned an invalid number of subquestions.")
+                result = json.loads(response.text)
+                subquestions = result.get("subquestions")
 
-        if not all(isinstance(q, str) and q.strip() for q in subquestions):
-            raise ValueError("Gemini returned invalid subquestions.")
+                if not isinstance(subquestions, list) or not 5 <= len(subquestions) <= 8:
+                    raise ValueError("Invalid number of subquestions.")
 
-        return subquestions
+                if not all(isinstance(q, str) and q.strip() for q in subquestions):
+                    raise ValueError("Invalid subquestions.")
+
+                self.model = model
+                print(f"Successful model: {model}")
+
+                return subquestions
+
+            except Exception as error:
+                print(f"{model} failed: {error}")
+                time.sleep(1)
+
+        raise RuntimeError("All available Gemini models failed to decompose the query.")

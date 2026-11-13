@@ -20,3 +20,13 @@ venv/
 Thumbs.db
 
 !.env.example
+
+# Downloaded research papers
+data/raw/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment variables
+.env
