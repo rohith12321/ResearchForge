@@ -1,6 +1,7 @@
 from src.researchforge.agents.researcher import Researcher
 from src.researchforge.agents.synthesizer import Synthesizer
 from src.researchforge.agents.fact_checker import FactChecker
+from src.researchforge.agents.critic import Critic
 
 
 def test_researcher():
@@ -57,6 +58,43 @@ def test_researcher():
     assert len(verified_claims) > 0
 
     print("\nFact Checker test passed!")
+    # Test Critic
+    critic = Critic()
+
+    evaluation = critic.evaluate(
+        research_question="What are the applications of model-agnostic meta-learning?",
+        synthesis=synthesis,
+        research_results=[result]
+    )
+
+    print("\n========== CRITIC EVALUATION ==========\n")
+
+    print("Scores:")
+    for metric, score in evaluation["scores"].items():
+        print(f"{metric}: {score}/10")
+
+    print("\nStrengths:")
+    for item in evaluation["strengths"]:
+        print("-", item)
+
+    print("\nWeaknesses:")
+    for item in evaluation["weaknesses"]:
+        print("-", item)
+
+    print("\nMissing aspects:")
+    for item in evaluation["missing_aspects"]:
+        print("-", item)
+
+    print("\nFollow-up questions:")
+    for item in evaluation["follow_up_questions"]:
+        print("-", item)
+
+    print("\nRecommendation:", evaluation["recommendation"])
+    print("Reason:", evaluation["reason"])
+
+    assert evaluation["recommendation"] in ["accept", "research_more"]
+
+    print("\nCritic test passed!")
 
 
 if __name__ == "__main__":

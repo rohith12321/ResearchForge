@@ -3,3 +3,4 @@ sentence-transformers
 requests
 faiss-cpu
 google-genai
+langgraph

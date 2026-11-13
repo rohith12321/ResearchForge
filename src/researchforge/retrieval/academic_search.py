@@ -74,46 +74,65 @@ def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+
 def make_request(url: str, retries: int = 3) -> bytes:
     """
-    Send an HTTP GET request.
-    Retry temporarily failed requests, including rate limits.
+    Send an HTTP GET request with retries for temporary failures.
+    Uses exponential backoff for rate limits, server errors and
+    network failures.
     """
     request = Request(
         url,
         headers={"User-Agent": USER_AGENT}
     )
 
+    retryable_status_codes = {408, 429, 500, 502, 503, 504}
+
     for attempt in range(retries + 1):
         try:
-            with urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=20) as response:
                 return response.read()
 
         except HTTPError as error:
-            if error.code == 429 and attempt < retries:
-                retry_after = error.headers.get("Retry-After")
+            if error.code not in retryable_status_codes:
+                raise RuntimeError(
+                    f"API returned HTTP {error.code}: {error.reason}"
+                ) from error
 
-                if retry_after and retry_after.isdigit():
-                    wait_time = int(retry_after)
-                else:
-                    wait_time = 2 ** attempt
+            if attempt == retries:
+                raise RuntimeError(
+                    f"API request failed after {retries + 1} attempts. "
+                    f"Last HTTP error: {error.code}"
+                ) from error
 
-                print(
-                    f"Rate limited. Retrying in {wait_time} seconds..."
-                )
-                time.sleep(wait_time)
-                continue
+            retry_after = error.headers.get("Retry-After")
 
-            raise RuntimeError(
-                f"API returned HTTP {error.code}: {error.reason}"
-            ) from error
+            if retry_after and retry_after.isdigit():
+                wait_time = min(int(retry_after), 30)
+            else:
+                wait_time = min(2 ** (attempt + 1), 8)
 
-        except URLError as error:
-            raise RuntimeError(
-                f"Could not connect to API: {error.reason}"
-            ) from error
+            print(
+                f"HTTP {error.code}. Retrying in {wait_time} seconds..."
+            )
+            time.sleep(wait_time)
+
+        except (URLError, TimeoutError) as error:
+            if attempt == retries:
+                raise RuntimeError(
+                    f"Request failed after {retries + 1} attempts: {error}"
+                ) from error
+
+            wait_time = min(2 ** (attempt + 1), 8)
+
+            print(
+                f"Network error: {error}. "
+                f"Retrying in {wait_time} seconds..."
+            )
+            time.sleep(wait_time)
 
     raise RuntimeError("Request failed after retries.")
+
 
 class HTMLTextExtractor(HTMLParser):
     """Extract readable text from HTML snippets."""
