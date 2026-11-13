@@ -36,6 +36,7 @@ class Synthesizer:
     def synthesize(self, research_question: str, research_results: list[dict]) -> str:
 
         evidence_context = []
+        valid_sources = {}
 
         for i, result in enumerate(research_results):
             evidence_context.append(
@@ -43,14 +44,19 @@ class Synthesizer:
             )
 
             for item in result["evidence"]:
+                paper_id = item.chunk.paper_id
+                paper_title = item.chunk.title
+
+                valid_sources[paper_id] = paper_title
+
                 evidence_context.append(
                     f"""
-Paper: {item.chunk.title}
-Paper ID: {item.chunk.paper_id}
-Similarity score: {item.score:.3f}
-Evidence:
-{item.chunk.text}
-"""
+    Paper: {paper_title}
+    Paper ID: {paper_id}
+    Similarity score: {item.score:.3f}
+    Evidence:
+    {item.chunk.text}
+    """
                 )
 
         context = "\n".join(evidence_context)
@@ -76,6 +82,10 @@ Instructions:
 7. Never invent papers, citations, experimental results or findings.
 8. If the evidence does not support a claim, explicitly state that.
 9. Do not treat similarity scores as measures of factual reliability.
+10. You may cite ONLY papers listed in the supplied evidence.
+11. Every citation must use the exact paper ID provided.
+12. Never generate a paper ID or title from memory.
+13. If no supplied evidence supports a claim, do not attach a citation to it.
 
 Structure your response using these sections:
 

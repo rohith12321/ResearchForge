@@ -58,7 +58,7 @@ class TestAcademicSearch(unittest.TestCase):
     # Original search functionality tests
     # ------------------------------------------
 
-    @patch("src.researchforge.academic_search.urlopen")
+    @patch("src.researchforge.retrieval.academic_search.urlopen")
     def test_search_returns_paper(self, mock_urlopen):
 
         mock_urlopen.return_value = BytesIO(SAMPLE_XML)
@@ -99,7 +99,7 @@ class TestAcademicSearch(unittest.TestCase):
             "https://arxiv.org/pdf/2401.12345"
         )
 
-    @patch("src.researchforge.academic_search.urlopen")
+    @patch("src.researchforge.retrieval.academic_search.urlopen")
     def test_empty_search_results(self, mock_urlopen):
 
         empty_xml = b"""
@@ -129,7 +129,7 @@ class TestAcademicSearch(unittest.TestCase):
         with self.assertRaises(ValueError):
             search_arxiv("machine learning", -5)
 
-    @patch("src.researchforge.academic_search.urlopen")
+    @patch("src.researchforge.retrieval.academic_search.urlopen")
     def test_malformed_xml_raises_error(self, mock_urlopen):
 
         mock_urlopen.return_value = BytesIO(b"<invalid xml")
@@ -149,7 +149,7 @@ class TestAcademicSearch(unittest.TestCase):
 
         self.assertEqual(
             result,
-            'all:"retrieval" AND all:"augmented" AND all:"generation"'
+            'all:"retrieval augmented generation"'
         )
 
     def test_exact_phrase_query(self):
@@ -185,7 +185,7 @@ class TestAcademicSearch(unittest.TestCase):
 
         self.assertEqual(
             result,
-            'abs:"diffusion" AND abs:"models"'
+            'abs:"diffusion models"'
         )
 
     def test_invalid_search_field(self):
@@ -216,6 +216,40 @@ class TestAcademicSearch(unittest.TestCase):
                 sort_by="invalid"
             )
 
+    def test_stop_word_removal_short_query(self):
+        """Stop-words are stripped; short result becomes a phrase."""
+        result = build_arxiv_query(
+            "What is model-agnostic meta-learning?"
+        )
+        # After removing stop-words: ["model-agnostic", "meta-learning"]
+        self.assertEqual(
+            result,
+            'all:"model-agnostic meta-learning"'
+        )
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_long_query_uses_priority_terms(self):
+        """Long queries pick hyphenated compounds > acronyms > length."""
+        result = build_arxiv_query(
+            "applications of model-agnostic meta-learning in few-shot computer vision tasks"
+        )
+        # Content words: applications, model-agnostic, meta-learning,
+        #   few-shot, computer, vision, tasks  (7 words > 4 → long path)
+        # Priority: hyphenated first → model-agnostic, meta-learning, few-shot
+        self.assertIn('all:"model-agnostic"', result)
+        self.assertIn('all:"meta-learning"', result)
+        self.assertIn('all:"few-shot"', result)
+        # All three joined with AND
+        self.assertEqual(result.count(" AND "), 2)
+
+    def test_long_query_acronym_priority(self):
+        """Acronyms are ranked above plain long words."""
+        result = build_arxiv_query(
+            "How does MAML technically function across different neural network architectures?"
+        )
+        # Content words include: maml (acronym), architectures(13),
+        #   technically(11), function(8), neural(6), network(7), across(6)
+        # Priority: MAML (acronym) > architectures > technically
+        self.assertIn('all:"maml"', result)
+        self.assertIn('all:"architectures"', result)
+        self.assertEqual(result.count(" AND "), 2)
+

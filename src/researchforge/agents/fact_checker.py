@@ -35,16 +35,60 @@ class FactChecker:
 
         self.model = None
 
+    def validate_claims(self, claims: list[dict], valid_sources: dict) -> list[dict]:
+        for claim in claims:
+            valid_evidence = []
+
+            for evidence in claim["evidence"]:
+                paper_id = evidence.get("paper_id")
+                quote = evidence.get("quote", "")
+
+                # Check whether the paper was actually retrieved
+                if paper_id not in valid_sources:
+                    continue
+
+                # Check whether the quotation exists in retrieved evidence
+                source_texts = valid_sources[paper_id]["texts"]
+
+                if not quote.strip():
+                    continue
+
+                if not any(quote.strip() in text for text in source_texts):
+                    continue
+
+                valid_evidence.append(evidence)
+
+            claim["evidence"] = valid_evidence
+
+            # A claim cannot be supported without valid evidence
+            if not valid_evidence:
+                claim["verdict"] = "unsupported"
+        claims = self.validate_claims(claims, valid_sources)
+        return claims
+
     def check(self, synthesis: str, research_results: list[dict]) -> list[dict]:
 
         evidence_context = []
+        valid_sources = {}
 
         for result in research_results:
             for item in result["evidence"]:
+                paper_id = item.chunk.paper_id
+                paper_title = item.chunk.title
+                evidence_text = item.chunk.text
+
+                valid_sources.setdefault(paper_id, {
+                    "title": paper_title,
+                    "texts": []
+                })
+
+                if evidence_text not in valid_sources[paper_id]["texts"]:
+                    valid_sources[paper_id]["texts"].append(evidence_text)
+
                 evidence_context.append({
-                    "paper_id": item.chunk.paper_id,
-                    "title": item.chunk.title,
-                    "text": item.chunk.text
+                    "paper_id": paper_id,
+                    "title": paper_title,
+                    "text": evidence_text
                 })
 
         prompt = f"""

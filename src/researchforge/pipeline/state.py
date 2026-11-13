@@ -1,4 +1,3 @@
-
 from typing import TypedDict, Any
 
 
@@ -27,5 +26,11 @@ class ResearchState(TypedDict):
     # Maximum number of allowed iterations
     max_iterations: int
 
-    # Final accepted report
+    # Final report
     final_report: str
+
+    # accepted or max_iterations_reached
+    completion_status: str
+
+    # Paper IDs successfully processed across all research iterations
+    processed_paper_ids: list[str]

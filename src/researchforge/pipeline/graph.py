@@ -18,13 +18,13 @@ def should_continue(state: ResearchState):
 
     critique = state["critique"]
 
-    if (
-        critique["recommendation"] == "research_more"
-        and state["iteration_count"] < state["max_iterations"]
-    ):
+    if critique["recommendation"] == "accept":
+        return "accept"
+
+    if state["iteration_count"] < state["max_iterations"]:
         return "research_more"
 
-    return "accept"
+    return "max_iterations_reached"
 
 
 def build_research_graph():
@@ -55,6 +55,7 @@ def build_research_graph():
         {
             "research_more": "prepare_follow_up",
             "accept": "finalize",
+            "max_iterations_reached": "finalize",
         },
     )
 

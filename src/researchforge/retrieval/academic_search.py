@@ -28,6 +28,10 @@ ATOM_NAMESPACE = {
 
 USER_AGENT = "ResearchForge/1.0 (academic research assistant)"
 
+# arXiv rate limiting: enforce a minimum gap between consecutive requests.
+_last_arxiv_request_time = 0.0
+ARXIV_REQUEST_INTERVAL = 3.0
+
 
 # ---------------------------------------------------------
 # Common result structures
@@ -72,7 +76,6 @@ class SearchResult:
 def clean_text(text: str) -> str:
     """Remove extra whitespace from text."""
     return re.sub(r"\s+", " ", text).strip()
-
 
 
 def make_request(url: str, retries: int = 3) -> bytes:
@@ -159,20 +162,127 @@ def strip_html(html: str) -> str:
 # 1. arXiv SEARCH
 # =========================================================
 
+# Stop-words to strip from natural-language queries before
+# building arXiv / Wikipedia search terms.
+_STOP_WORDS = {
+    # Question words
+    "what", "which", "how", "why", "when", "where", "who", "whom",
+    "whose", "whether",
+    # Articles / determiners
+    "a", "an", "the", "this", "that", "these", "those",
+    # Prepositions / conjunctions
+    "of", "in", "on", "at", "to", "for", "with", "by", "from",
+    "into", "about", "through", "between", "and", "or", "but",
+    "nor", "so", "yet",
+    # Auxiliary / copula verbs
+    "is", "are", "was", "were", "be", "been", "being",
+    "do", "does", "did", "have", "has", "had",
+    "can", "could", "will", "would", "shall", "should", "may",
+    "might", "must",
+    # Common filler words in research questions
+    "their", "its", "it", "they", "them", "we", "us", "you",
+    "he", "she", "his", "her", "our", "your",
+    "also", "not", "no", "as", "if", "than", "then", "some",
+    "any", "all", "each", "both", "such", "more", "most", "other",
+    "different", "various", "based", "using", "used",
+}
+
+
+def _extract_key_terms(query: str) -> list[str]:
+    """
+    Extract meaningful content words from a natural-language query.
+
+    - Strips punctuation (preserving hyphens so compound terms like
+      'meta-learning' and 'few-shot' stay intact).
+    - Removes stop-words and very short tokens (< 3 chars).
+    """
+    # Remove punctuation except hyphens
+    cleaned = re.sub(r"[^\w\s-]", " ", query.lower())
+    words = cleaned.split()
+
+    content_words = [
+        w for w in words
+        if w not in _STOP_WORDS and len(w) >= 3
+    ]
+
+    if not content_words:
+        # Fallback: return all non-trivial words
+        content_words = [w for w in words if len(w) >= 3] or words
+
+    return content_words
+
+
+def _prioritize_terms(
+    content_words: list[str],
+    original_query: str,
+    max_terms: int = 3
+) -> list[str]:
+    """
+    Select the most topically important terms from a list of content words.
+
+    Priority order:
+    1. Hyphenated compound terms  (meta-learning, few-shot, model-agnostic)
+    2. Acronyms – words that appear fully uppercase in the original query
+       (MAML, NLP, RAG, BERT, etc.)
+    3. Longer terms (more specific / technical vocabulary)
+    """
+    acronyms = {
+        m.lower()
+        for m in re.findall(r'\b[A-Z]{2,}\b', original_query)
+    }
+
+    def _sort_key(word: str):
+        if '-' in word:
+            return (0, -len(word))   # hyphenated compounds first
+        if word in acronyms:
+            return (1, -len(word))   # acronyms second
+        return (2, -len(word))       # then by descending length
+
+    return sorted(content_words, key=_sort_key)[:max_terms]
+
+
+def simplify_query(query: str) -> str:
+    """
+    Reduce a natural-language question to its 2-3 most important search terms.
+
+    Returns a space-separated string suitable for any search API.
+
+    Example:
+        "How does MAML function for few-shot learning tasks?"
+        -> "few-shot maml learning"
+    """
+    if not query or not query.strip():
+        return query.strip()
+
+    content_words = _extract_key_terms(query)
+    selected = _prioritize_terms(content_words, query, max_terms=3)
+    return " ".join(selected)
+
+
 def build_arxiv_query(
     query: str,
     field: str = "all",
     exact_phrase: bool = False
 ) -> str:
     """
-    Convert a normal search query into arXiv query syntax.
+    Convert a natural-language search query into arXiv query syntax.
+
+    Strategy:
+    - Short queries (<=4 content words after stop-word removal): treated
+      as one exact phrase.
+    - Longer queries: the 3 most important content words are selected
+      (prioritising hyphenated compounds, then acronyms, then length)
+      and AND-joined as individual terms.
 
     Examples:
-        "retrieval augmented generation"
-        -> all:"retrieval" AND all:"augmented" AND all:"generation"
+        "meta-learning"  ->  all:"meta-learning"
 
-        exact_phrase=True
-        -> all:"retrieval augmented generation"
+        "few-shot learning MAML"  ->  all:"few-shot learning maml"
+
+        "How does MAML function for few-shot image classification?"
+        ->  all:"few-shot" AND all:"maml" AND all:"image"
+
+        exact_phrase=True  ->  all:"<original query>"
     """
     if not query or not query.strip():
         raise ValueError("Search query cannot be empty.")
@@ -189,11 +299,16 @@ def build_arxiv_query(
     if exact_phrase:
         return f'{field}:"{query}"'
 
-    words = query.split()
+    content_words = _extract_key_terms(query)
 
-    return " AND ".join(
-        f'{field}:"{word}"' for word in words
-    )
+    # Short query: treat the meaningful words as one exact phrase.
+    if len(content_words) <= 4:
+        phrase = " ".join(content_words)
+        return f'{field}:"{phrase}"'
+
+    # Longer query: pick the 3 most important terms and AND them.
+    selected = _prioritize_terms(content_words, query, max_terms=3)
+    return " AND ".join(f'{field}:"{term}"' for term in selected)
 
 
 def search_arxiv(
@@ -251,7 +366,21 @@ def search_arxiv(
 
     url = f"{ARXIV_API_URL}?{urlencode(params)}"
 
+    # Enforce a minimum interval between consecutive arXiv requests
+    # to avoid rate-limiting (HTTP 429).
+    global _last_arxiv_request_time
+
+    elapsed = time.monotonic() - _last_arxiv_request_time
+
+    if elapsed < ARXIV_REQUEST_INTERVAL:
+        wait_time = ARXIV_REQUEST_INTERVAL - elapsed
+        print(
+            f"Waiting {wait_time:.1f}s before next arXiv request..."
+        )
+        time.sleep(wait_time)
+
     response_data = make_request(url)
+    _last_arxiv_request_time = time.monotonic()
 
     try:
         root = ET.fromstring(response_data)
@@ -467,7 +596,7 @@ def search_all(
 
     combined_results = []
 
-    # 1. arXiv
+    # 1. arXiv (build_arxiv_query handles simplification internally).
     try:
         arxiv_results = search_arxiv(query, max_results)
 
@@ -490,11 +619,12 @@ def search_all(
     except Exception as error:
         print(f"arXiv search failed: {error}")
 
-    # 2. Wikipedia
+    # 2. Wikipedia — use simplified keywords so long natural-language
+    #    questions don't return 0 results.  Wikipedia's srsearch works
+    #    best with short keyword phrases, not full questions.
     try:
-        wikipedia_results = search_wikipedia(
-            query, max_results
-        )
+        wiki_query = simplify_query(query)
+        wikipedia_results = search_wikipedia(wiki_query, max_results)
 
         combined_results.extend(wikipedia_results)
 

@@ -25,9 +25,11 @@ def research_manager_node(state: ResearchState):
 
 
 def researcher_node(state: ResearchState):
-    """Retrieve evidence for every current subquestion."""
+    """Retrieve evidence while avoiding previously processed papers."""
 
-    researcher = Researcher()
+    researcher = Researcher(
+        seen_paper_ids=state.get("processed_paper_ids", [])
+    )
 
     new_results = []
 
@@ -39,9 +41,14 @@ def researcher_node(state: ResearchState):
 
     all_results = state.get("research_results", []) + new_results
 
+    processed_paper_ids = list(researcher.seen_paper_ids)
+
+    print(f"\nUnique papers processed so far: {len(processed_paper_ids)}")
+
     return {
         "research_results": all_results,
-        "iteration_count": state.get("iteration_count", 0) + 1
+        "iteration_count": state.get("iteration_count", 0) + 1,
+        "processed_paper_ids": processed_paper_ids
     }
 
 
@@ -76,14 +83,15 @@ def fact_checker_node(state: ResearchState):
 
 
 def critic_node(state: ResearchState):
-    """Evaluate the report and decide whether more research is needed."""
+    """Evaluate the report, including its factual reliability."""
 
     critic = Critic()
 
     critique = critic.evaluate(
         research_question=state["research_question"],
         synthesis=state["synthesis"],
-        research_results=state["research_results"]
+        research_results=state["research_results"],
+        fact_check_results=state["fact_check_results"]
     )
 
     return {
@@ -106,8 +114,15 @@ def prepare_follow_up_research(state: ResearchState):
 
 
 def finalize_report(state: ResearchState):
-    """Store the accepted report as the final output."""
+    """Store the final report and its completion status."""
+
+    status = (
+        "accepted"
+        if state["critique"]["recommendation"] == "accept"
+        else "max_iterations_reached"
+    )
 
     return {
-        "final_report": state["synthesis"]
+        "final_report": state["synthesis"],
+        "completion_status": status
     }

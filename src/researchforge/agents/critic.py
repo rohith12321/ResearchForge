@@ -39,7 +39,8 @@ class Critic:
         self,
         research_question: str,
         synthesis: str,
-        research_results: list[dict]
+        research_results: list[dict],
+        fact_check_results: list[dict]
     ) -> dict:
 
         evidence_context = []
@@ -59,6 +60,18 @@ Evidence:
 """
                 )
 
+        verdict_counts = {
+            "supported": 0,
+            "partially_supported": 0,
+            "unsupported": 0
+        }
+
+        for claim in fact_check_results:
+            verdict = claim.get("verdict")
+
+            if verdict in verdict_counts:
+                verdict_counts[verdict] += 1
+
         prompt = f"""
 You are the Critic Agent of ResearchForge.
 
@@ -74,6 +87,12 @@ RESEARCH SYNTHESIS:
 RETRIEVED RESEARCH EVIDENCE:
 {"".join(evidence_context)}
 
+FACT-CHECK RESULTS:
+{json.dumps(fact_check_results, indent=2)}
+
+FACT-CHECK SUMMARY:
+{json.dumps(verdict_counts, indent=2)}
+
 Evaluate the synthesis using ONLY the supplied information.
 
 Consider:
@@ -86,6 +105,7 @@ Consider:
 
 3. Evidence grounding:
    Are the conclusions supported by the retrieved evidence?
+   Pay particular attention to unsupported and partially supported claims.
 
 4. Depth:
    Is the technical discussion sufficiently detailed?
@@ -95,6 +115,9 @@ Consider:
 
 6. Contradictions:
    Are disagreements between papers adequately discussed?
+
+7. Factual reliability:
+   Does the fact-check report reveal claims that lack sufficient evidence?
 
 Return a JSON object with exactly this structure:
 
@@ -106,18 +129,10 @@ Return a JSON object with exactly this structure:
         "depth": 1,
         "overall": 1
     }},
-    "strengths": [
-        "Strength of the synthesis"
-    ],
-    "weaknesses": [
-        "Weakness of the synthesis"
-    ],
-    "missing_aspects": [
-        "Important aspect not adequately covered"
-    ],
-    "follow_up_questions": [
-        "Specific research question that could address a gap"
-    ],
+    "strengths": [],
+    "weaknesses": [],
+    "missing_aspects": [],
+    "follow_up_questions": [],
     "recommendation": "accept",
     "reason": "Explanation of the recommendation"
 }}
@@ -129,15 +144,17 @@ Scoring:
 
 Recommendation:
 - "accept": The synthesis adequately addresses the question
-  using the available evidence.
-- "research_more": Important gaps remain that additional research
-  could reasonably address.
+  and its important claims are sufficiently supported.
+- "research_more": Important evidence gaps or unsupported claims
+  remain that additional research could reasonably address.
 
 Rules:
 - Do not invent findings or citations.
 - Do not use external knowledge.
 - Do not reward a synthesis merely for being lengthy.
-- Follow-up questions must address actual gaps in the synthesis.
+- Treat unsupported claims as serious weaknesses.
+- Partially supported claims must be examined carefully.
+- Follow-up questions must address actual gaps.
 - Return valid JSON only.
 """
 
@@ -159,6 +176,7 @@ Rules:
                 result = json.loads(response.text)
 
                 scores = result.get("scores")
+
                 if not isinstance(scores, dict):
                     raise ValueError("Missing scores.")
 
@@ -172,6 +190,7 @@ Rules:
 
                 for name in score_names:
                     value = scores.get(name)
+
                     if not isinstance(value, int) or not 1 <= value <= 10:
                         raise ValueError(f"Invalid score: {name}")
 
@@ -192,16 +211,37 @@ Rules:
 
                 if not isinstance(result.get("reason"), str):
                     raise ValueError("Missing recommendation reason.")
-                if (
+
+                # Deterministic acceptance safeguards
+                if verdict_counts["unsupported"] > 0:
+                    result["recommendation"] = "research_more"
+                    result["reason"] = (
+                        f"{verdict_counts['unsupported']} claims were "
+                        "classified as unsupported by the FactChecker. "
+                        "The report requires further verification."
+                    )
+
+                elif (
+                    verdict_counts["partially_supported"] > 0
+                    and result["scores"]["evidence_grounding"] < 8
+                ):
+                    result["recommendation"] = "research_more"
+                    result["reason"] = (
+                        "Some claims are only partially supported, "
+                        "and evidence grounding is insufficient."
+                    )
+
+                elif (
                     result["missing_aspects"]
                     and result["follow_up_questions"]
                     and result["scores"]["evidence_coverage"] < 9
                 ):
                     result["recommendation"] = "research_more"
                     result["reason"] = (
-                        "Important aspects are still missing, and actionable follow-up "
-                        "questions remain. Additional research is needed before acceptance."
+                        "Important aspects remain missing, and actionable "
+                        "follow-up questions exist."
                     )
+
                 self.model = model
                 print(f"Successful model: {model}")
 
@@ -211,4 +251,6 @@ Rules:
                 print(f"{model} failed: {error}")
                 time.sleep(1)
 
-        raise RuntimeError("All available Gemini models failed to evaluate the synthesis.")
+        raise RuntimeError(
+            "All available Gemini models failed to evaluate the synthesis."
+        )
