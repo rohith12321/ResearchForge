@@ -1,0 +1,32 @@
+[
+    {
+        "paper_id": "http://arxiv.org/abs/2606.15782v2",
+        "title": "Mitigating Visual Hallucinations in Multimodal Systems through Retrieval-Augmented Reliability-Aware Inference",
+        "score": 0.6283718943595886,
+        "text": "Mitigating Visual Hallucinations in\nMultimodal Systems through\nRetrieval-Augmented Reliability-Aware\nInference\nPratheswaran Hariharan†, Haiping Xu†, Donghui Yan‡\n†Computer and Information Science\n‡Mathematics and Data Science\nUniversity of Massachusetts, Dartmouth, MA\nAugust 4, 2026\nAbstract\nMultimodal large language models (MLLMs) have demonstrated strong\ncapabilities in vision-language understanding and natural-language re-\nsponse generation. However, these systems can still produce overconfident\npredictions and hallucination-like outputs, particularly when the visual\nevidence is weak, ambiguous, or semantically inconsistent. Most exist-\ning approaches focus on improving multimodal representation alignment\nor retrieval-augmented generation, while providing limited mechanisms\nto quantify instance-level prediction reliability or identify confidently in-\ncorrect visual outputs. To address this limitation, this work proposes a\nretrieval-augmented reliability-aware inference framework for"
+    },
+    {
+        "paper_id": "http://arxiv.org/abs/2606.15782v2",
+        "title": "Mitigating Visual Hallucinations in Multimodal Systems through Retrieval-Augmented Reliability-Aware Inference",
+        "score": 0.6250087022781372,
+        "text": "ted or confidently incor-\nrect visual predictions before they are converted into final user-facing responses.\nRetrieval-augmented methods provide a useful direction for improving ground-\ning and interpretability. In natural language processing, retrieval-augmented\ngeneration uses external documents or memory to support generated answers\n[12, 7]. Similar principles can be applied to visual inference by retrieving nearest-\nneighbor examples from a reference image database. In this setting, retrieved\nexamples serve as external visual evidence that can be compared with the query\nimage.\nDeep nearest-neighbor methods have shown that examples retrieved\nfrom representation space can provide interpretable support for model predic-\ntions [17]. Efficient similarity search tools such as FAISS [9] and the random\nprojection forests based kNN search algorithm [21] make it possible to retrieve\nevidence from large-scale embedding databases during inference.\nHowever, retrieval alone does not guarantee r"
+    },
+    {
+        "paper_id": "http://arxiv.org/abs/2410.22954v5",
+        "title": "Retrieval-Augmented Generation with Estimation of Source Reliability",
+        "score": 0.6025057435035706,
+        "text": "Retrieval-Augmented Generation with Estimation of Source Reliability\nJeongyeon Hwang1, Junyoung Park 1, Hyejin Park1,\nDongwoo Kim1, Sangdon Park1, Jungseul Ok1,*,\n1Pohang University of Science and Technology (POSTECH), South Korea\nAbstract\nRetrieval-Augmented Generation (RAG) is an\neffective approach to enhance the factual ac-\ncuracy of large language models (LLMs) by\nretrieving information from external databases,\nwhich are typically composed of diverse\nsources, to supplement the limited internal\nknowledge of LLMs. However, the standard\nRAG often risks retrieving incorrect informa-\ntion, as it relies solely on relevance between a\nquery and a document, overlooking the hetero-\ngeneous reliability of these sources. To address\nthis issue, we propose Reliability-Aware RAG\n(RA-RAG), a new multi-source RAG frame-\nwork that estimates the reliability of sources\nand leverages this information to prioritize\nhighly reliable and relevant documents, ensur-\ning more robust and accurate response gene"
+    },
+    {
+        "paper_id": "http://arxiv.org/abs/2606.15782v2",
+        "title": "Mitigating Visual Hallucinations in Multimodal Systems through Retrieval-Augmented Reliability-Aware Inference",
+        "score": 0.5977032780647278,
+        "text": "ed\ndemonstration. The reliability gate controls whether a prediction should be ac-\ncepted, softened, or rejected, but the final natural-language response can still be\nimproved. In particular, future systems should ensure that the language model\nalways follows the evidence-gated decision and does not overstate unsupported\npredictions. This is especially important for real-world multimodal applications\nwhere users may rely on the generated explanation as much as the predicted\nclass label.\n6\nDiscussion and Conclusion\nThis work presented a retrieval-augmented reliability-aware inference frame-\nwork for reducing visual hallucinations in multimodal systems. The main idea\nof the proposed approach is to separate prediction generation from prediction\nacceptance. Instead of allowing the system to return a confident answer for\nevery input image, the framework first checks whether the predicted class is\nsupported by external visual evidence retrieved from a reference database.\nThe proposed method"
+    },
+    {
+        "paper_id": "http://arxiv.org/abs/2410.22954v5",
+        "title": "Retrieval-Augmented Generation with Estimation of Source Reliability",
+        "score": 0.5873703360557556,
+        "text": "Lin, Xianpei Han, and Le Sun.\n2024.\nBenchmarking large language models in\nretrieval-augmented generation. In Proceedings of\nthe AAAI Conference on Artificial Intelligence, vol-\nume 38, pages 17754–17762.\nBoyi Deng, Wenjie Wang, Fengbin Zhu, Qifan Wang,\nand Fuli Feng. 2024. Cram: Credibility-aware atten-\ntion modification in llms for combating misinforma-\ntion in rag. arXiv preprint arXiv:2406.11497.\nShehzaad Dhuliawala, Mojtaba Komeili, Jing Xu,\nRoberta Raileanu, Xian Li, Asli Celikyilmaz, and Ja-\nson Weston. 2024. Chain-of-verification reduces hal-\nlucination in large language models. In Findings of\nthe Association for Computational Linguistics: ACL\n2024, Bangkok, Thailand. Association for Computa-\ntional Linguistics.\nAbhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey,\nAbhishek Kadian, Ahmad Al-Dahle, Aiesha Letman,\nAkhil Mathur, Alan Schelten, Amy Yang, Angela\nFan, and 1 others. 2024. The llama 3 herd of models.\narXiv preprint arXiv:2407.21783.\nMichael Glass, Gaetano Rossiello, Md Fais"
+    }
+]
